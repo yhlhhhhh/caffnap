@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>CaffNap · 咖啡因宵禁 & 入睡预测</title>
+<style>
+  :root {
+    --bg: #f6f4f0; --card: #ffffff; --text: #1a1a2e; --sub: #6b7280;
+    --border: #e5e1da; --blue: #3b6fd4; --orange: #d4691e; --purple: #8b5cf6;
+    --green: #2e9e5b; --red: #d03050; --warn: #b87700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12121c; --card: #1d1d2b; --text: #eceaf2; --sub: #9aa0ab;
+      --border: #33334a; --blue: #6b96e8; --orange: #e08a4e; --purple: #a78bfa;
+      --green: #4cc38a; --red: #ef6a86; --warn: #e0a63e;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.6; max-width: 680px; margin: 0 auto; padding: 16px 14px 60px;
+  }
+  header { text-align: center; padding: 20px 0 8px; }
+  header h1 { font-size: 30px; font-weight: 700; letter-spacing: 1px; }
+  header h1 span { color: var(--orange); }
+  header p { color: var(--sub); font-size: 13px; margin-top: 4px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px; margin-top: 14px;
+  }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fld { display: flex; flex-direction: column; gap: 4px; }
+  .fld label { font-size: 12px; color: var(--sub); }
+  select, input[type="time"], input[type="number"] {
+    padding: 8px 10px; border-radius: 10px; font-size: 15px; width: 100%;
+    border: 1px solid var(--border); background: transparent; color: var(--text);
+  }
+  .chk { display: flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; }
+  .chk input { width: 17px; height: 17px; accent-color: var(--text); }
+  .dose-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
+  .dose-row .del {
+    border: 1px solid var(--border); background: transparent; color: var(--sub);
+    border-radius: 10px; width: 38px; height: 38px; font-size: 17px; cursor: pointer; flex-shrink: 0;
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: none; border-radius: 10px; cursor: pointer; font-size: 15px;
+    padding: 9px 16px; background: var(--text); color: var(--bg); font-weight: 600;
+  }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .result-main { font-size: 38px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .result-sub { font-size: 13px; color: var(--sub); margin-top: 4px; }
+  .badge {
+    display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 7px; margin-top: 10px; font-weight: 600;
+  }
+  .badge.ok { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+  .badge.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .badge.risk { background: color-mix(in srgb, var(--red) 13%, transparent); color: var(--red); }
+  svg text { font-family: inherit; }
+  .stat-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--sub); padding: 3px 0; }
+  .stat-row b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .note { font-size: 12px; color: var(--sub); margin-top: 12px; line-height: 1.7; }
+  footer { text-align: center; color: var(--sub); font-size: 12px; margin-top: 28px; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Caff<span>Nap</span></h1>
+  <p>咖啡因宵禁 & 入睡预测 · 咖啡小睡教练</p>
+</header>
+
+<!-- 基因型 -->
+<div class="card">
+  <h2><span class="dot" style="background:var(--blue)"></span>代谢档案</h2>
+  <div class="grid">
+    <div class="fld"><label>CYP1A2 rs762551（决定半衰期）</label>
+      <select id="cyp">
+        <option value="AA">AA · 快代谢（t½≈3.2h）</option>
+        <option value="AC" selected>AC · 中代谢（t½≈4.5h）</option>
+        <option value="CC">CC · 慢代谢（t½≈7.5h）</option>
+      </select></div>
+    <div class="fld"><label>ADORA2A rs5751876（决定睡眠阈值）</label>
+      <select id="ador">
+        <option value="TT">TT · 敏感（阈值 1.3 mg/L）</option>
+        <option value="CT" selected>CT · 中等（阈值 1.0 mg/L）</option>
+        <option value="CC">CC · 钝感（阈值 0.8 mg/L）</option>
+      </select></div>
+    <div class="fld"><label>AHR rs4410790</label>
+      <select id="ahr">
+        <option value="TT">TT</option>
+        <option value="GT" selected>GT</option>
+        <option value="GG">GG · 诱导强</option>
+      </select></div>
+    <div class="fld"><label>ABCG2 rs1481012</label>
+      <select id="abcg2">
+        <option value="AA">AA</option>
+        <option value="AC" selected>AC</option>
+        <option value="CC">CC</option>
+      </select></div>
+  </div>
+  <div style="display:flex;gap:18px;margin-top:12px;flex-wrap:wrap;">
+    <label class="chk"><input type="checkbox" id="smoke"> 吸烟（代谢加速）</label>
+    <label class="chk"><input type="checkbox" id="oc"> 口服避孕药/妊娠</label>
+  </div>
+</div>
+
+<!-- 摄入记录 -->
+<div class="card">
+  <h2><span class="dot" style="background:var(--orange)"></span>今日咖啡因摄入</h2>
+  <div id="doseList"></div>
+  <button class="btn ghost" id="addDose" style="width:100%;">＋ 添加一杯</button>
+</div>
+
+<!-- 小睡 -->
+<div class="card">
+  <h2><span class="dot" style="background:var(--purple)"></span>咖啡小睡（可选）</h2>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+    <label class="chk" style="margin-bottom:8px;"><input type="checkbox" id="napOn"> 今天做了小睡</label>
+    <div class="fld" style="flex:1;min-width:110px;"><label>开始时间</label><input type="time" id="napT" value="14:10"></div>
+    <div class="fld" style="flex:1;min-width:130px;"><label>时长</label>
+      <select id="napD">
+        <option value="15">15 min（经典咖啡小睡）</option>
+        <option value="20" selected>20 min</option>
+        <option value="30">30 min</option>
+        <option value="60">60 min</option>
+      </select></div>
+  </div>
+</div>
+
+<!-- 预测结果 -->
+<div class="card" style="border-width:2px;">
+  <h2><span class="dot" style="background:var(--green)"></span>预测结果</h2>
+  <div class="result-sub">最早可入睡时间（咖啡因清除 ∧ 褪黑素达 DLMO）</div>
+  <div class="result-main" id="bedtime">—</div>
+  <div class="result-sub" id="bedtimeSub"></div>
+  <div class="stat-row" style="margin-top:10px;"><span>估算半衰期</span><b id="stHalf">—</b></div>
+  <div class="stat-row"><span>咖啡因降至阈值</span><b id="stClear">—</b></div>
+  <div class="stat-row"><span>褪黑素 DLMO（实际）</span><b id="stDlmo">—</b></div>
+  <div><span class="badge ok" id="badge">—</span></div>
+</div>
+
+<!-- 宵禁反推 -->
+<div class="card">
+  <h2><span class="dot" style="background:var(--red)"></span>宵禁反推</h2>
+  <div class="grid" style="align-items:end;">
+    <div class="fld"><label>目标入睡时间</label><input type="time" id="targetBed" value="23:00"></div>
+    <div class="fld"><label>最后一杯最晚（按所选饮品 1 杯）</label>
+      <div style="font-size:26px;font-weight:700;color:var(--orange);font-variant-numeric:tabular-nums;" id="lastCall">—</div></div>
+  </div>
+  <div class="note" id="lastCallNote"></div>
+</div>
+
+<!-- 曲线图 -->
+<div class="card">
+  <h2><span class="dot" style="background:var(--blue)"></span>血药浓度曲线</h2>
+  <svg id="chartCaf" viewBox="0 0 560 200" width="100%"></svg>
+</div>
+<div class="card">
+  <h2><span class="dot" style="background:var(--purple)"></span>褪黑素节律（虚线 = 无咖啡因自然节律）</h2>
+  <svg id="chartMel" viewBox="0 0 560 190" width="100%"></svg>
+</div>
+
+<div class="note">
+  模型：一房室一级消除，C(t)=Σ(mg/42)×1.15×2^(−Δt/t½)。半衰期由 CYP1A2 主导，AHR/ABCG2 每等位微调 ±5–10%，吸烟 ×0.7，避孕药/妊娠 ×1.5。DLMO = 23:00−2h，18:00–01:00 摄入按 200mg→推迟 40min 相位延迟，咖啡因在血期间压制分泌幅度 30%。小睡结束晚于 15:00 按 (结束−15h)×(时长/30)×30min 推迟入睡（上限 90min）。所有数据仅存于本机浏览器（localStorage），不上传。个体差异 ±1–2h，本工具不构成医疗建议。
+</div>
+
+<footer>CaffNap · 生活方式记录工具 · 数据仅存本机</footer>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const BEVS = [
+  { k: "espresso", label: "浓缩 espresso", mg: 60 },
+  { k: "americano", label: "美式", mg: 150 },
+  { k: "filter", label: "手冲/大美式", mg: 200 },
+  { k: "latte", label: "拿铁", mg: 75 },
+  { k: "tea", label: "茶", mg: 45 },
+  { k: "decaf", label: "低因/其他", mg: 0 }
+];
+const LS_KEY = "caffnap_v1";
+
+// ---------- 状态 ----------
+let state = { doses: [], napOn: false, napT: "14:10", napD: 20 };
+try {
+  const saved = JSON.parse(localStorage.getItem(LS_KEY));
+  if (saved && saved.doses) state = Object.assign(state, saved);
+  // 只保留今天
+  const today = new Date().toDateString();
+  state.doses = state.doses.filter(d => d.day === today);
+} catch (e) {}
+
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+// ---------- 输入 ----------
+function getParams() {
+  let th = { AA: 3.2, AC: 4.5, CC: 7.5 }[$("cyp").value];
+  th *= { TT: 1.10, GT: 1.0, GG: 0.90 }[$("ahr").value];
+  th *= { AA: 0.95, AC: 1.0, CC: 1.05 }[$("abcg2").value];
+  if ($("smoke").checked) th *= 0.7;
+  if ($("oc").checked) th *= 1.5;
+  const thr = { TT: 1.3, CT: 1.0, CC: 0.8 }[$("ador").value];
+  return { th, thr };
+}
+const toMin = s => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+const toHM = t => {
+  const h = Math.floor(t / 60) % 24, m = Math.round(t % 60) % 60;
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+};
+
+// ---------- 摄入条目 UI ----------
+function renderDoses() {
+  const box = $("doseList");
+  box.innerHTML = "";
+  state.doses.forEach((d, i) => {
+    const row = document.createElement("div");
+    row.className = "dose-row";
+    const opts = BEVS.map(b =>
+      `<option value="${b.k}" ${b.k === d.bev ? "selected" : ""}>${b.label}（${b.mg}mg）</option>`).join("");
+    row.innerHTML = `
+      <div class="fld" style="flex:2;min-width:130px;"><label>饮品</label><select data-i="${i}" class="d-bev">${opts}</select></div>
+      <div class="fld" style="flex:1;min-width:70px;"><label>杯数</label><input type="number" data-i="${i}" class="d-cups" value="${d.cups}" min="0.5" max="6" step="0.5"></div>
+      <div class="fld" style="flex:1;min-width:100px;"><label>时间</label><input type="time" data-i="${i}" class="d-time" value="${d.time}"></div>
+      <button class="del" data-i="${i}" title="删除">×</button>`;
+    box.appendChild(row);
+  });
+  box.querySelectorAll("select,input").forEach(el => el.addEventListener("input", e => {
+    const i = +e.target.dataset.i;
+    if (e.target.classList.contains("d-bev")) state.doses[i].bev = e.target.value;
+    if (e.target.classList.contains("d-cups")) state.doses[i].cups = +e.target.value;
+    if (e.target.classList.contains("d-time")) state.doses[i].time = e.target.value;
+    save(); calc();
+  }));
+  box.querySelectorAll(".del").forEach(b => b.addEventListener("click", e => {
+    state.doses.splice(+e.target.dataset.i, 1); save(); renderDoses(); calc();
+  }));
+}
+$("addDose").addEventListener("click", () => {
+  const now = new Date();
+  const hm = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+  state.doses.push({ bev: "americano", cups: 1, time: hm, day: new Date().toDateString() });
+  save(); renderDoses(); calc();
+});
+
+// ---------- 药代模型 ----------
+function doseMg(d) { const b = BEVS.find(x => x.k === d.bev); return b ? b.mg * d.cups : 0; }
+function concentration(mg, th, dtH) { return dtH < 0 ? 0 : mg / 42 * 1.15 * Math.pow(2, -dtH / th); }
+function totalC(doses, th, tMin) {
+  return doses.reduce((s, d) => s + concentration(doseMg(d), th, (tMin - toMin(d.time)) / 60), 0);
+}
+function tClear(doses, th, thr) {
+  if (!doses.length) return null;
+  const last = Math.max(...doses.map(d => toMin(d.time)));
+  for (let t = last + 30; t <= last + 1440; t += 2)
+    if (totalC(doses, th, t) <= thr) return t;
+  return null;
+}
+function lastCall(mg, th, thr, targetMin) {
+  const c0 = mg / 42 * 1.15;
+  if (c0 <= thr) return 0;
+  return Math.max(0, targetMin - (th * Math.log2(c0 / thr) * 60 + 30));
+}
+
+// ---------- 褪黑素模型 ----------
+function melRaw(rel) {  // rel = t - DLMO，pg/mL
+  if (rel < -1 || rel >= 8) return 5;
+  if (rel < 0) return 5 + (rel + 1) * 5;
+  if (rel < 2) return 10 + rel * 25;
+  if (rel < 4) return 60 + (rel - 2) * 20;
+  return 100 - (rel - 4) * 22.5;
+}
+
+// ---------- 主计算 ----------
+function calc() {
+  const { th, thr } = getParams();
+  const doses = state.doses.filter(d => doseMg(d) > 0);
+  const totalMg = doses.reduce((s, d) => s + doseMg(d), 0);
+  const tC = tClear(doses, th, thr);
+
+  // 小睡
+  const napOn = $("napOn").checked;
+  const napStart = toMin($("napT").value), napDur = +$("napD").value;
+  const napEnd = napStart + napDur;
+  let napDelayMin = 0;
+  if (napOn && napEnd > 15 * 60) napDelayMin = Math.min(90, (napEnd - 900) / 60 * (napDur / 30) * 30);
+
+  // 褪黑素：DLMO 锚定 23:00-2h
+  const dlmo0 = 21 * 60;
+  let delayMin = 0;
+  doses.forEach(d => {
+    const rel = ((toMin(d.time) - dlmo0) % 1440 + 1440) % 1440;
+    const before = rel <= 16 * 60 ? rel - 1440 : rel;
+    if (before >= -300 && before <= 120) delayMin += (doseMg(d) / 200) * 40;
+  });
+  delayMin = Math.min(delayMin, 180);
+  const dlmoEff = dlmo0 + delayMin;
+  const suppress = t => 1 - 0.3 * Math.min(1, totalC(doses, th, t) / thr);
+  const melAt = t => {
+    let rel = ((t - dlmoEff) % 1440 + 1440) % 1440;
+    if (rel > 16 * 60) rel -= 1440;
+    return melRaw(rel) * suppress(t);
+  };
+  let tMel = null;
+  for (let t = 12 * 60; t <= 24 * 60; t += 2) if (melAt(t) >= 10) { tMel = t; break; }
+
+  // 入睡 = max(双条件) + 小睡推迟
+  let tSleep = null;
+  if (tC !== null && tMel !== null) tSleep = Math.max(tC, tMel) + napDelayMin;
+
+  // ---- 输出 ----
+  $("bedtime").textContent = tSleep !== null
+    ? toHM(tSleep) + (tSleep >= 1440 ? "（次日）" : "") : "24h 内条件未满足";
+  let subs = [];
+  if (tC !== null) subs.push("咖啡因 " + toHM(tC) + " 达标");
+  if (tMel !== null) subs.push("褪黑素 " + toHM(tMel) + " 达标");
+  if (napDelayMin > 0) subs.push("小睡 +" + Math.round(napDelayMin) + "min");
+  $("bedtimeSub").textContent = subs.join(" · ") || "添加第一杯开始预测";
+  $("stHalf").textContent = th.toFixed(1) + " h";
+  $("stClear").textContent = tC !== null ? toHM(tC) : "24h 内未达标";
+  $("stDlmo").textContent = toHM(dlmoEff) + (delayMin > 0 ? `（推迟 ${Math.round(delayMin)}min）` : "（未受扰动）");
+
+  const badge = $("badge");
+  if (delayMin >= 90 || (tSleep !== null && tSleep > 24 * 60)) {
+    badge.textContent = "高风险：生物钟被明显推迟"; badge.className = "badge risk";
+  } else if (tSleep === null || tSleep > 23 * 60) {
+    badge.textContent = "中风险：晚间饮用"; badge.className = "badge warn";
+  } else {
+    badge.textContent = "低风险：节律基本未受扰"; badge.className = "badge ok";
+  }
+
+  // 宵禁反推
+  const selBev = state.doses.length ? BEVS.find(b => b.k === state.doses[state.doses.length - 1].bev) : BEVS[1];
+  const lc = lastCall(selBev.mg, th, thr, toMin($("targetBed").value));
+  $("lastCall").textContent = toHM(lc);
+  $("lastCallNote").textContent =
+    `按「${selBev.label}」1 杯（${selBev.mg}mg）计算。想喝更晚？换小杯浓缩（60mg）可把宵禁延后约 ` +
+    Math.round((th * Math.log2((selBev.mg / 42 * 1.15) / thr) - th * Math.log2((60 / 42 * 1.15) / thr)) * 60) +
+    ` 分钟。`;
+
+  drawCaf(thr, doses, totalMg, tC, tSleep, napOn ? { s: napStart, e: napEnd, d: napDur } : null);
+  drawMel(dlmo0, dlmoEff, melAt, doses, th, thr, tSleep);
+}
+
+// ---------- 图表 ----------
+function drawCaf(thr, doses, totalMg, tC, tSleep, nap) {
+  const W = 560, H = 200, L = 40, R = 12, T = 12, B = 30;
+  let peak = 0;
+  for (let t = 0; t <= 1440; t += 5) {
+    const c = totalC(doses, getParams().th, t);
+    if (c > peak) peak = c;
+  }
+  const cMax = Math.max(peak * 1.15, thr * 1.3, 1);
+  const X = t => L + (W - L - R) * t / 1440;
+  const Y = c => T + (H - T - B) * (1 - c / cMax);
+  let s = "";
+  for (let g = 0; g <= 1440; g += 240)
+    s += `<line x1="${X(g)}" y1="${T}" x2="${X(g)}" y2="${H - B}" stroke="var(--border)"/>`;
+  if (nap) {
+    s += `<rect x="${X(nap.s)}" y="${T}" width="${X(Math.min(nap.e, 1440)) - X(nap.s)}" height="${H - B - T}" fill="var(--purple)" opacity="0.12" rx="4"/>
+          <text x="${(X(nap.s) + X(Math.min(nap.e, 1440))) / 2}" y="${T + 12}" text-anchor="middle" font-size="10" fill="var(--sub)">小睡 ${nap.d}min</text>`;
+  }
+  doses.forEach(d => {
+    const mg = doseMg(d), h = 12 + Math.min(mg, 400) / 400 * 30;
+    s += `<rect x="${X(toMin(d.time)) - 3}" y="${H - B - h}" width="6" height="${h}" rx="2" fill="var(--orange)" opacity="0.8"/>
+          <text x="${X(toMin(d.time))}" y="${H - B - h - 4}" text-anchor="middle" font-size="9" fill="var(--sub)">${mg}mg</text>`;
+  });
+  s += `<line x1="${L}" y1="${Y(thr)}" x2="${W - R}" y2="${Y(thr)}" stroke="var(--sub)" stroke-dasharray="4 3"/>
+        <text x="${W - R}" y="${Y(thr) - 4}" text-anchor="end" font-size="10" fill="var(--sub)">阈值 ${thr.toFixed(1)} mg/L</text>`;
+  let path = "";
+  for (let i = 0; i <= 240; i++) {
+    const t = 1440 * i / 240;
+    path += (i ? "L" : "M") + X(t).toFixed(1) + " " + Y(totalC(doses, getParams().th, t)).toFixed(1) + " ";
+  }
+  s += `<path d="${path}" fill="none" stroke="var(--blue)" stroke-width="2.2"/>`;
+  if (tC !== null && tC <= 1440)
+    s += `<circle cx="${X(tC)}" cy="${Y(thr)}" r="4" fill="var(--blue)" opacity="0.4"/>`;
+  if (tSleep !== null && tSleep <= 1440)
+    s += `<circle cx="${X(tSleep)}" cy="${Y(thr)}" r="5" fill="var(--blue)"/>
+          <text x="${X(tSleep)}" y="${Y(thr) + 16}" text-anchor="middle" font-size="11" fill="var(--blue)">${toHM(tSleep)}</text>`;
+  for (let g = 0; g < 1440; g += 240)
+    s += `<text x="${X(g)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--sub)">${g / 60}时</text>`;
+  $("chartCaf").innerHTML = s;
+}
+
+function drawMel(dlmo0, dlmoEff, melAt, doses, th, thr, tSleep) {
+  const W = 560, H = 190, L = 44, R = 12, T = 12, B = 28;
+  const X = t => L + (W - L - R) * t / 1440;
+  const Y = v => T + (H - T - B) * (1 - v / 100);
+  let s = "";
+  for (let g = 0; g <= 1440; g += 240)
+    s += `<line x1="${X(g)}" y1="${T}" x2="${X(g)}" y2="${H - B}" stroke="var(--border)"/>`;
+  if (dlmo0 !== dlmoEff)
+    s += `<line x1="${X(dlmo0)}" y1="${T}" x2="${X(dlmo0)}" y2="${H - B}" stroke="var(--sub)" stroke-dasharray="3 3"/>
+          <text x="${X(dlmo0)}" y="${H - B - 4}" text-anchor="middle" font-size="9" fill="var(--sub)">自然 ${toHM(dlmo0)}</text>`;
+  s += `<line x1="${L}" y1="${Y(10)}" x2="${W - R}" y2="${Y(10)}" stroke="var(--sub)" stroke-dasharray="4 3"/>
+        <text x="${W - R}" y="${Y(10) - 4}" text-anchor="end" font-size="10" fill="var(--sub)">DLMO 10 pg/mL</text>`;
+  let dRaw = "", dEff = "";
+  for (let i = 0; i <= 240; i++) {
+    const t = 1440 * i / 240;
+    let rel = ((t - dlmoEff) % 1440 + 1440) % 1440;
+    if (rel > 960) rel -= 1440;
+    dRaw += (i ? "L" : "M") + X(t).toFixed(1) + " " + Y(melRaw(rel)).toFixed(1) + " ";
+    dEff += (i ? "L" : "M") + X(t).toFixed(1) + " " + Y(melAt(t)).toFixed(1) + " ";
+  }
+  s += `<path d="${dRaw}" fill="none" stroke="var(--sub)" stroke-width="1.4" stroke-dasharray="5 3" opacity="0.6"/>
+        <path d="${dEff}" fill="none" stroke="var(--purple)" stroke-width="2.2"/>`;
+  if (dlmoEff >= 0 && dlmoEff <= 1440)
+    s += `<circle cx="${X(dlmoEff)}" cy="${Y(10)}" r="4" fill="var(--purple)"/>
+          <text x="${X(dlmoEff)}" y="${Y(10) + 16}" text-anchor="middle" font-size="10" fill="var(--purple)">${toHM(dlmoEff)}</text>`;
+  if (tSleep !== null && tSleep <= 1440)
+    s += `<line x1="${X(tSleep)}" y1="${T}" x2="${X(tSleep)}" y2="${Y(10)}" stroke="var(--purple)" stroke-dasharray="4 3" opacity="0.5"/>`;
+  for (let g = 0; g < 1440; g += 240)
+    s += `<text x="${X(g)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--sub)">${g / 60}时</text>`;
+  s += `<text x="${L - 5}" y="${T + 10}" text-anchor="end" font-size="10" fill="var(--sub)">100</text>
+        <text x="${L - 5}" y="${H - B}" text-anchor="end" font-size="10" fill="var(--sub)">0</text>`;
+  $("chartMel").innerHTML = s;
+}
+
+// ---------- 事件 & 初始化 ----------
+["cyp", "ador", "ahr", "abcg2", "smoke", "oc", "napOn", "napT", "napD", "targetBed"]
+  .forEach(id => { $(id).addEventListener("input", calc); $(id).addEventListener("change", calc); });
+
+// 默认演示数据（首次打开）
+if (state.doses.length === 0 && !localStorage.getItem(LS_KEY)) {
+  state.doses = [
+    { bev: "americano", cups: 1, time: "08:30", day: new Date().toDateString() },
+    { bev: "americano", cups: 1, time: "14:00", day: new Date().toDateString() }
+  ];
+}
+renderDoses();
+calc();
+</script>
+</body>
+</html>

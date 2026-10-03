@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#1a1a2e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>CaffNap · 咖啡因宵禁 & 入睡预测</title>
+<script src="db.js"></script>
 <style>
   :root {
     --bg: #f6f4f0; --card: #ffffff; --text: #1a1a2e; --sub: #6b7280;
@@ -103,13 +104,18 @@
     <div class="fld"><label>ABCG2 rs1481012</label>
       <select id="abcg2">
         <option value="AA">AA</option>
-        <option value="AC" selected>AC</option>
-        <option value="CC">CC</option>
+        <option value="AG" selected>AG</option>
+        <option value="GG">GG</option>
       </select></div>
   </div>
   <div style="display:flex;gap:18px;margin-top:12px;flex-wrap:wrap;">
     <label class="chk"><input type="checkbox" id="smoke"> 吸烟（代谢加速）</label>
     <label class="chk"><input type="checkbox" id="oc"> 口服避孕药/妊娠</label>
+  </div>
+  <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+    <label class="btn ghost" for="geneFile" style="cursor:pointer;display:inline-block;">🧬 导入基因报告（23andMe / 微基因 txt）</label>
+    <input type="file" id="geneFile" accept=".txt,text/plain" style="display:none">
+    <div id="geneStatus" style="font-size:13px;color:var(--sub);margin-top:10px;line-height:1.7;"></div>
   </div>
 </div>
 
@@ -133,6 +139,7 @@
         <option value="30">30 min</option>
         <option value="60">60 min</option>
       </select></div>
+    <div class="fld" style="flex:1;min-width:110px;"><label>起床时间（锚定睡眠压力）</label><input type="time" id="wakeT" value="07:00"></div>
   </div>
 </div>
 
@@ -145,6 +152,7 @@
   <div class="stat-row" style="margin-top:10px;"><span>估算半衰期</span><b id="stHalf">—</b></div>
   <div class="stat-row"><span>咖啡因降至阈值</span><b id="stClear">—</b></div>
   <div class="stat-row"><span>褪黑素 DLMO（实际）</span><b id="stDlmo">—</b></div>
+  <div class="stat-row"><span>PER1 节律修正（rs7221412）</span><b id="stPer1">—</b></div>
   <div><span class="badge ok" id="badge">—</span></div>
 </div>
 
@@ -168,9 +176,15 @@
   <h2><span class="dot" style="background:var(--purple)"></span>褪黑素节律（虚线 = 无咖啡因自然节律）</h2>
   <svg id="chartMel" viewBox="0 0 560 190" width="100%"></svg>
 </div>
+<div class="card">
+  <h2><span class="dot" style="background:var(--green)"></span>昼夜节律 & 睡眠压力（双过程模型）</h2>
+  <svg id="chartAlert" viewBox="0 0 560 190" width="100%"></svg>
+  <div class="stat-row"><span>今日午后低谷（预计）</span><b id="stDip">—</b></div>
+  <div class="stat-row"><span>夜间最低清醒度（预计）</span><b id="stNight">—</b></div>
+</div>
 
 <div class="note">
-  模型：一房室一级消除，C(t)=Σ(mg/42)×1.15×2^(−Δt/t½)。半衰期由 CYP1A2 主导，AHR/ABCG2 每等位微调 ±5–10%，吸烟 ×0.7，避孕药/妊娠 ×1.5。DLMO = 23:00−2h，18:00–01:00 摄入按 200mg→推迟 40min 相位延迟，咖啡因在血期间压制分泌幅度 30%。小睡结束晚于 15:00 按 (结束−15h)×(时长/30)×30min 推迟入睡（上限 90min）。所有数据仅存于本机浏览器（localStorage），不上传。个体差异 ±1–2h，本工具不构成医疗建议。
+  模型：一房室一级消除，C(t)=Σ(mg/42)×1.15×2^(−Δt/t½)。双过程清醒度 = 昼夜节律基线 + 咖啡因加成(≤+28) − 腺苷压力(清醒每小时+4，小睡每分钟清1.2)，节律基线含 15:30 午后低谷与夜间下滑。半衰期由 CYP1A2 主导，AHR/ABCG2 每等位微调 ±5–10%，吸烟 ×0.7，避孕药/妊娠 ×1.5。DLMO = 23:00−2h，18:00–01:00 摄入按 200mg→推迟 40min 相位延迟，咖啡因在血期间压制分泌幅度 30%。小睡结束晚于 15:00 按 (结束−15h)×(时长/30)×30min 推迟入睡（上限 90min）。所有数据仅存于本机浏览器（localStorage），不上传。基因报告导入（23andMe / 微基因 txt）仅在本机浏览器内解析目标位点，原文件不出设备，解析结果仅存本机可随时清除。个体差异 ±1–2h，本工具不构成医疗建议。
 </div>
 
 <footer>CaffNap · 生活方式记录工具 · 数据仅存本机</footer>
@@ -178,7 +192,8 @@
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
-const BEVS = [
+// 通用兜底饮品（数据库加载失败或本地双击打开时使用）
+const GENERIC_BEVS = [
   { k: "espresso", label: "浓缩 espresso", mg: 60 },
   { k: "americano", label: "美式", mg: 150 },
   { k: "filter", label: "手冲/大美式", mg: 200 },
@@ -186,7 +201,15 @@ const BEVS = [
   { k: "tea", label: "茶", mg: 45 },
   { k: "decaf", label: "低因/其他", mg: 0 }
 ];
+// 数据库经 <script src="db.js"> 同步注入（file:// 双击也可用）
+const DB_META = window.CAFFNAP_DB || {};
+let DB_ITEMS = DB_META.items || [];
+if (!DB_ITEMS.length) console.warn("CaffNap: db.js 未加载，使用通用估算饮品");
+function allBevs() { return DB_ITEMS.length ? DB_ITEMS : GENERIC_BEVS; }
+function bevMid(b) { return b.mg !== undefined ? b.mg : (b.mg_min + b.mg_max) / 2; }
 const LS_KEY = "caffnap_v1";
+const GENO_KEY = "caffnap_geno_v1";
+let dlmoOff = 0;   // PER1 rs7221412 的 DLMO 偏移（分钟）
 
 // ---------- 状态 ----------
 let state = { doses: [], napOn: false, napT: "14:10", napD: 20 };
@@ -204,7 +227,7 @@ function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 function getParams() {
   let th = { AA: 3.2, AC: 4.5, CC: 7.5 }[$("cyp").value];
   th *= { TT: 1.10, GT: 1.0, GG: 0.90 }[$("ahr").value];
-  th *= { AA: 0.95, AC: 1.0, CC: 1.05 }[$("abcg2").value];
+  th *= { AA: 0.95, AG: 1.0, GG: 1.05 }[$("abcg2").value];
   if ($("smoke").checked) th *= 0.7;
   if ($("oc").checked) th *= 1.5;
   const thr = { TT: 1.3, CT: 1.0, CC: 0.8 }[$("ador").value];
@@ -217,22 +240,67 @@ const toHM = t => {
 };
 
 // ---------- 摄入条目 UI ----------
+// 品牌原始分类 → 四大归一类型
+const TYPE_MAP = {
+  "美式类": "美式", "美式": "美式", "冷萃类": "美式", "冷萃": "美式",
+  "滴滤咖啡": "美式", "冰咖啡": "美式",
+  "拿铁类": "拿铁", "拿铁": "拿铁", "摩卡": "拿铁", "星冰乐": "拿铁",
+  "浓缩咖啡": "浓缩", "浓缩": "浓缩",
+  "奶茶": "奶茶", "轻因系列": "奶茶", "纯茶": "奶茶", "特调": "奶茶",
+  "茶咖": "奶茶", "轻咖": "奶茶", "其他非咖啡类": "奶茶", "无咖啡": "奶茶", "果茶": "奶茶"
+};
+function normType(b) { return DB_ITEMS.length ? (TYPE_MAP[b.category] || "奶茶") : "通用"; }
+
 function renderDoses() {
   const box = $("doseList");
   box.innerHTML = "";
+  const list = allBevs();
   state.doses.forEach((d, i) => {
+    let cur = list.find(b => b.k === d.bev);
+    if (!cur) { cur = list[0]; d.bev = cur.k; }
+    const curBrand = cur.brand || "通用";
+    const curType = normType(cur);
+
+    const brands = [...new Set(list.map(b => b.brand || "通用"))];
+    // 该品牌实际拥有的归一类型（保持四大桶顺序）
+    const ALL_TYPES = ["美式", "拿铁", "浓缩", "奶茶"];
+    const hasTypes = ALL_TYPES.filter(t => list.some(b => (b.brand || "通用") === curBrand && normType(b) === t));
+    const types = DB_ITEMS.length ? hasTypes : ["通用"];
+    const prods = list.filter(b => (b.brand || "通用") === curBrand && normType(b) === curType);
+
+    const opt = (v, label, sel) => `<option value="${v}" ${sel ? "selected" : ""}>${label}</option>`;
     const row = document.createElement("div");
     row.className = "dose-row";
-    const opts = BEVS.map(b =>
-      `<option value="${b.k}" ${b.k === d.bev ? "selected" : ""}>${b.label}（${b.mg}mg）</option>`).join("");
     row.innerHTML = `
-      <div class="fld" style="flex:2;min-width:130px;"><label>饮品</label><select data-i="${i}" class="d-bev">${opts}</select></div>
-      <div class="fld" style="flex:1;min-width:70px;"><label>杯数</label><input type="number" data-i="${i}" class="d-cups" value="${d.cups}" min="0.5" max="6" step="0.5"></div>
-      <div class="fld" style="flex:1;min-width:100px;"><label>时间</label><input type="time" data-i="${i}" class="d-time" value="${d.time}"></div>
+      <div class="fld" style="flex:1.2;min-width:100px;"><label>品牌</label>
+        <select data-i="${i}" class="d-brand">${brands.map(b => opt(b, b, b === curBrand)).join("")}</select></div>
+      <div class="fld" style="flex:1;min-width:80px;"><label>类型</label>
+        <select data-i="${i}" class="d-type">${types.map(t => opt(t, t, t === curType)).join("")}</select></div>
+      <div class="fld" style="flex:2.4;min-width:150px;"><label>产品</label>
+        <select data-i="${i}" class="d-bev">${prods.map(b =>
+          opt(b.k, DB_ITEMS.length
+            ? `${b.drink}（${b.spec}）·约${Math.round(bevMid(b))}mg`
+            : `${b.label}（${b.mg}mg）`, b.k === d.bev)).join("")}</select></div>
+      <div class="fld" style="flex:0.8;min-width:64px;"><label>杯数</label>
+        <input type="number" data-i="${i}" class="d-cups" value="${d.cups}" min="0.5" max="6" step="0.5"></div>
+      <div class="fld" style="flex:1;min-width:96px;"><label>时间</label>
+        <input type="time" data-i="${i}" class="d-time" value="${d.time}"></div>
       <button class="del" data-i="${i}" title="删除">×</button>`;
     box.appendChild(row);
   });
-  box.querySelectorAll("select,input").forEach(el => el.addEventListener("input", e => {
+
+  box.querySelectorAll(".d-brand").forEach(el => el.addEventListener("change", e => {
+    const i = +e.target.dataset.i;
+    const first = allBevs().find(b => (b.brand || "通用") === e.target.value);
+    if (first) { state.doses[i].bev = first.k; save(); renderDoses(); calc(); }
+  }));
+  box.querySelectorAll(".d-type").forEach(el => el.addEventListener("change", e => {
+    const i = +e.target.dataset.i;
+    const curBrand = (allBevs().find(b => b.k === state.doses[i].bev) || allBevs()[0]).brand || "通用";
+    const first = allBevs().find(b => (b.brand || "通用") === curBrand && normType(b) === e.target.value);
+    if (first) { state.doses[i].bev = first.k; save(); renderDoses(); calc(); }
+  }));
+  box.querySelectorAll(".d-bev,.d-cups,.d-time").forEach(el => el.addEventListener("input", e => {
     const i = +e.target.dataset.i;
     if (e.target.classList.contains("d-bev")) state.doses[i].bev = e.target.value;
     if (e.target.classList.contains("d-cups")) state.doses[i].cups = +e.target.value;
@@ -243,15 +311,16 @@ function renderDoses() {
     state.doses.splice(+e.target.dataset.i, 1); save(); renderDoses(); calc();
   }));
 }
+
 $("addDose").addEventListener("click", () => {
   const now = new Date();
   const hm = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
-  state.doses.push({ bev: "americano", cups: 1, time: hm, day: new Date().toDateString() });
+  state.doses.push({ bev: DB_ITEMS.length ? "b000" : "americano", cups: 1, time: hm, day: new Date().toDateString() });
   save(); renderDoses(); calc();
 });
 
 // ---------- 药代模型 ----------
-function doseMg(d) { const b = BEVS.find(x => x.k === d.bev); return b ? b.mg * d.cups : 0; }
+function doseMg(d) { const b = allBevs().find(x => x.k === d.bev); return b ? bevMid(b) * d.cups : 0; }
 function concentration(mg, th, dtH) { return dtH < 0 ? 0 : mg / 42 * 1.15 * Math.pow(2, -dtH / th); }
 function totalC(doses, th, tMin) {
   return doses.reduce((s, d) => s + concentration(doseMg(d), th, (tMin - toMin(d.time)) / 60), 0);
@@ -267,6 +336,23 @@ function lastCall(mg, th, thr, targetMin) {
   const c0 = mg / 42 * 1.15;
   if (c0 <= thr) return 0;
   return Math.max(0, targetMin - (th * Math.log2(c0 / thr) * 60 + 30));
+}
+
+// ---------- 双过程模型：节律基线 + 腺苷压力 ----------
+const CIRC = [[0,45],[4,33],[6,45],[7,72],[9,88],[12,85],[14,78],[15.5,65],[17,80],[19,78],[21,68],[22.5,58],[24,45]];
+function circadian(t) {
+  t = ((t % 24) + 24) % 24;
+  for (let i = 0; i < CIRC.length - 1; i++) {
+    const [t0, v0] = CIRC[i], [t1, v1] = CIRC[i + 1];
+    if (t >= t0 && t <= t1) return v0 + (v1 - v0) * (t - t0) / (t1 - t0);
+  }
+  return 45;
+}
+function adenosine(t, wakeMin, napEndMin, napDurMin) {
+  let awake = ((t - wakeMin) % 1440 + 1440) % 1440;   // 距起床分钟数
+  let p = Math.min(90, awake / 60 * 4);               // 每小时 +4
+  if (napEndMin !== null && t > napEndMin) p = Math.max(0, p - napDurMin * 1.2);
+  return p;
 }
 
 // ---------- 褪黑素模型 ----------
@@ -293,7 +379,7 @@ function calc() {
   if (napOn && napEnd > 15 * 60) napDelayMin = Math.min(90, (napEnd - 900) / 60 * (napDur / 30) * 30);
 
   // 褪黑素：DLMO 锚定 23:00-2h
-  const dlmo0 = 21 * 60;
+  const dlmo0 = 21 * 60 + dlmoOff;   // PER1 rs7221412: AA −1h / AG 0 / GG +1h
   let delayMin = 0;
   doses.forEach(d => {
     const rel = ((toMin(d.time) - dlmo0) % 1440 + 1440) % 1440;
@@ -326,6 +412,7 @@ function calc() {
   $("stHalf").textContent = th.toFixed(1) + " h";
   $("stClear").textContent = tC !== null ? toHM(tC) : "24h 内未达标";
   $("stDlmo").textContent = toHM(dlmoEff) + (delayMin > 0 ? `（推迟 ${Math.round(delayMin)}min）` : "（未受扰动）");
+  $("stPer1").textContent = { "-60": "AA · 偏晨型（DLMO −1h）", "0": "AG · 标准", "60": "GG · 偏夜型（DLMO +1h）" }[String(dlmoOff)] || "未知（默认标准）";
 
   const badge = $("badge");
   if (delayMin >= 90 || (tSleep !== null && tSleep > 24 * 60)) {
@@ -337,16 +424,28 @@ function calc() {
   }
 
   // 宵禁反推
-  const selBev = state.doses.length ? BEVS.find(b => b.k === state.doses[state.doses.length - 1].bev) : BEVS[1];
-  const lc = lastCall(selBev.mg, th, thr, toMin($("targetBed").value));
+  const list = allBevs();
+  const selBev = state.doses.length
+    ? list.find(b => b.k === state.doses[state.doses.length - 1].bev)
+    : (list.find(b => b.k === "americano") || list[0]);
+  const selMg = bevMid(selBev);
+  const lc = lastCall(selMg, th, thr, toMin($("targetBed").value));
   $("lastCall").textContent = toHM(lc);
+  const lowMg = Math.min(...list.map(bevMid).filter(m => m > 0));
   $("lastCallNote").textContent =
-    `按「${selBev.label}」1 杯（${selBev.mg}mg）计算。想喝更晚？换小杯浓缩（60mg）可把宵禁延后约 ` +
-    Math.round((th * Math.log2((selBev.mg / 42 * 1.15) / thr) - th * Math.log2((60 / 42 * 1.15) / thr)) * 60) +
+    `按「${DB_ITEMS.length ? selBev.brand + "·" + selBev.drink : selBev.label}」1 杯（约${Math.round(selMg)}mg）计算。想喝更晚？换最低因选项（约${Math.round(lowMg)}mg）可把宵禁延后约 ` +
+    Math.round((th * Math.log2((selMg / 42 * 1.15) / thr) - th * Math.log2((lowMg / 42 * 1.15) / thr)) * 60) +
     ` 分钟。`;
 
+  const wakeMin = toMin($("wakeT").value);
+  const napEndMin = napOn ? napEnd : null;
+  const alertness = t => {
+    const a = circadian(t) + 28 * Math.min(1, totalC(doses, th, t) / thr) - 0.35 * adenosine(t * 60, wakeMin, napEndMin, napDur);
+    return Math.max(5, Math.min(100, a));
+  };
   drawCaf(thr, doses, totalMg, tC, tSleep, napOn ? { s: napStart, e: napEnd, d: napDur } : null);
   drawMel(dlmo0, dlmoEff, melAt, doses, th, thr, tSleep);
+  drawAlert(alertness, doses, napOn ? { s: napStart, e: napEnd, d: napDur } : null, tSleep);
 }
 
 // ---------- 图表 ----------
@@ -424,19 +523,161 @@ function drawMel(dlmo0, dlmoEff, melAt, doses, th, thr, tSleep) {
   $("chartMel").innerHTML = s;
 }
 
+function drawAlert(alertness, doses, nap, tSleep) {
+  const W = 560, H = 190, L = 40, R = 12, T = 12, B = 28;
+  const X = t => L + (W - L - R) * t / 24;
+  const Y = a => T + (H - T - B) * (1 - a / 100);
+  let s = "";
+  // 分区底色
+  s += `<rect x="${L}" y="${Y(100)}" width="${W - L - R}" height="${Y(60) - Y(100)}" fill="var(--green)" opacity="0.08"/>
+        <rect x="${L}" y="${Y(60)}" width="${W - L - R}" height="${Y(35) - Y(60)}" fill="var(--warn)" opacity="0.10"/>
+        <rect x="${L}" y="${Y(35)}" width="${W - L - R}" height="${Y(5) - Y(35)}" fill="var(--sub)" opacity="0.15"/>`;
+  for (let g = 0; g <= 24; g += 4)
+    s += `<line x1="${X(g)}" y1="${T}" x2="${X(g)}" y2="${H - B}" stroke="var(--border)"/>`;
+  s += `<line x1="${L}" y1="${Y(60)}" x2="${W - R}" y2="${Y(60)}" stroke="var(--sub)" stroke-dasharray="3 3" opacity="0.6"/>
+        <text x="${W - R}" y="${Y(60) - 4}" text-anchor="end" font-size="9" fill="var(--sub)">60</text>
+        <line x1="${L}" y1="${Y(35)}" x2="${W - R}" y2="${Y(35)}" stroke="var(--sub)" stroke-dasharray="3 3" opacity="0.6"/>
+        <text x="${W - R}" y="${Y(35) - 4}" text-anchor="end" font-size="9" fill="var(--sub)">35 困倦</text>`;
+  if (nap) {
+    s += `<rect x="${X(nap.s / 60)}" y="${T}" width="${X(Math.min(nap.e, 1440) / 60) - X(nap.s / 60)}" height="${H - B - T}" fill="var(--purple)" opacity="0.15" rx="4"/>
+          <text x="${(X(nap.s / 60) + X(Math.min(nap.e, 1440) / 60)) / 2}" y="${T + 11}" text-anchor="middle" font-size="9" fill="var(--sub)">小睡</text>`;
+  }
+  doses.forEach(d => {
+    s += `<rect x="${X(toMin(d.time) / 60) - 2}" y="${H - B - 8}" width="4" height="8" rx="1.5" fill="var(--orange)" opacity="0.7"/>`;
+  });
+  // 曲线 + 找午后低谷 & 夜间最低
+  let path = "", dipA = 101, dipT = 0, minA = 101, minT = 0;
+  for (let i = 0; i <= 240; i++) {
+    const t = 24 * i / 240, a = alertness(t);
+    path += (i ? "L" : "M") + X(t).toFixed(1) + " " + Y(a).toFixed(1) + " ";
+    if (t >= 13 && t <= 18 && a < dipA) { dipA = a; dipT = t; }
+    if ((t >= 22 || t <= 6) && a < minA) { minA = a; minT = t; }
+  }
+  s += `<path d="${path}" fill="none" stroke="var(--green)" stroke-width="2.2"/>`;
+  if (dipA < 101)
+    s += `<circle cx="${X(dipT)}" cy="${Y(dipA)}" r="3.5" fill="var(--green)"/>
+          <text x="${X(dipT)}" y="${Y(dipA) + 15}" text-anchor="middle" font-size="9" fill="var(--sub)">午后低谷 ${toHM(dipT * 60)}</text>`;
+  if (minA < 101)
+    s += `<circle cx="${X(minT)}" cy="${Y(minA)}" r="3.5" fill="var(--green)"/>
+          <text x="${X(minT)}" y="${Y(minA) - 8}" text-anchor="middle" font-size="9" fill="var(--sub)">夜间最低 ${toHM(minT * 60)}</text>`;
+  if (tSleep !== null && tSleep <= 1440)
+    s += `<line x1="${X(tSleep / 60)}" y1="${T}" x2="${X(tSleep / 60)}" y2="${H - B}" stroke="var(--blue)" stroke-dasharray="4 3" opacity="0.6"/>
+          <text x="${X(tSleep / 60)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="var(--blue)">${toHM(tSleep)} 可入睡</text>`;
+  for (let g = 0; g < 24; g += 4)
+    s += `<text x="${X(g)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--sub)">${g}时</text>`;
+  s += `<text x="${L - 5}" y="${T + 10}" text-anchor="end" font-size="10" fill="var(--sub)">100</text>
+        <text x="${L - 5}" y="${H - B}" text-anchor="end" font-size="10" fill="var(--sub)">0</text>`;
+  $("chartAlert").innerHTML = s;
+  $("stDip").textContent = toHM(dipT * 60) + "（清醒度 " + Math.round(dipA) + "）";
+  $("stNight").textContent = toHM(minT * 60) + "（清醒度 " + Math.round(minA) + "）";
+}
+
+// ---------- 基因报告导入（23andMe / 微基因，纯本地解析，不上传） ----------
+// 每个位点：关注等位基因计数（0/1/2）→ 映射到模型档位
+const GENO_LOCI = [
+  { rsid: "rs762551",  gene: "CYP1A2",  allele: "A", key: "cyp",   map: { 2: "AA", 1: "AC", 0: "CC" },
+    pheno: g => ({ AA: "快代谢 t½≈3.2h", AC: "中代谢 t½≈4.5h", CC: "慢代谢 t½≈7.5h" }[g]) },
+  { rsid: "rs5751876", gene: "ADORA2A", allele: "T", key: "ador",  map: { 2: "TT", 1: "CT", 0: "CC" },
+    pheno: g => ({ TT: "高敏感（阈值 1.3）", CT: "中等（阈值 1.0）", CC: "钝感（阈值 0.8）" }[g]) },
+  { rsid: "rs4410790", gene: "AHR",     allele: "G", key: "ahr",   map: { 2: "GG", 1: "GT", 0: "TT" },
+    pheno: g => ({ GG: "诱导强 · 清除偏快", GT: "标准", TT: "诱导弱 · 清除偏慢 10%" }[g]) },
+  { rsid: "rs1481012", gene: "ABCG2",   allele: "A", key: "abcg2", map: { 2: "AA", 1: "AG", 0: "GG" },
+    pheno: g => ({ AA: "外排快 · 清除偏快 5%", AG: "标准", GG: "外排慢 · 清除偏慢 5%" }[g]) },
+  { rsid: "rs7221412", gene: "PER1",    allele: "A", key: "per1",  map: { 2: "AA", 1: "AG", 0: "GG" },
+    pheno: g => ({ AA: "偏晨型 · DLMO 提前 1h", AG: "标准节律", GG: "偏夜型 · DLMO 推迟 1h" }[g]) }
+];
+
+function parseGeneText(text) {
+  const byRs = Object.fromEntries(GENO_LOCI.map(l => [l.rsid, l]));
+  const found = {}, missing = [];
+  for (const raw of text.split(/\r?\n/)) {
+    if (!raw || raw.startsWith("#")) continue;
+    const p = raw.trim().split(/\s+/);
+    if (p.length < 4) continue;
+    const locus = byRs[p[0]];
+    if (!locus || found[locus.key]) continue;
+    const gt = p[3].toUpperCase();
+    if (gt.length < 2 || gt.includes("-") || gt.includes("N")) { missing.push(locus.gene + "（无检出）"); continue; }
+    const count = Math.min(2, (gt.split("").filter(c => c === locus.allele).length));
+    const g = locus.map[count];
+    if (g) found[locus.key] = { g, rsid: locus.rsid, gene: locus.gene, pheno: locus.pheno(g) };
+  }
+  for (const l of GENO_LOCI) if (!found[l.key] && !missing.some(m => m.startsWith(l.gene))) missing.push(l.gene);
+  return { found, missing };
+}
+
+function applyGeno(found) {
+  if (found.cyp)   $("cyp").value = found.cyp.g;
+  if (found.ador)  $("ador").value = found.ador.g;
+  if (found.ahr)   $("ahr").value = found.ahr.g;
+  if (found.abcg2) $("abcg2").value = found.abcg2.g;
+  dlmoOff = found.per1 ? ({ AA: -60, AG: 0, GG: 60 }[found.per1.g] ?? 0) : 0;
+}
+
+function showGenoStatus(found, missing, fromCache) {
+  const box = $("geneStatus");
+  const rows = Object.values(found)
+    .map(v => `<div>✅ <b>${v.gene}</b> ${v.rsid} = <b>${v.g}</b> · ${v.pheno}</div>`).join("");
+  const miss = missing.length
+    ? `<div style="color:var(--warn)">⚠️ 未检出：${missing.join("、")}（保持默认档位）</div>` : "";
+  box.innerHTML = (fromCache ? "🧬 已恢复上次导入的基因报告" : "🧬 导入成功（文件仅在本地解析，未上传）")
+    + rows + miss;
+}
+
+$("geneFile").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const t0 = performance.now();
+  file.text().then(text => {
+    const { found, missing } = parseGeneText(text);
+    if (Object.keys(found).length === 0) {
+      $("geneStatus").innerHTML = "⚠️ 未找到任何目标位点——请确认是 23andMe / 微基因 原始数据 txt";
+      return;
+    }
+    applyGeno(found);
+    localStorage.setItem(GENO_KEY, JSON.stringify(found));
+    showGenoStatus(found, missing, false);
+    calc();
+    console.log(`解析 ${(text.length / 1e6).toFixed(1)}MB / ${((performance.now() - t0) / 1000).toFixed(2)}s`);
+  });
+  e.target.value = "";   // 允许重复导入同一文件
+});
+
+// 启动时恢复上次导入的基因档案
+(function restoreGeno() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(GENO_KEY));
+    if (saved && saved.cyp) {
+      applyGeno(saved);
+      showGenoStatus(saved, [], true);
+    }
+  } catch (e) {}
+})();
+
 // ---------- 事件 & 初始化 ----------
-["cyp", "ador", "ahr", "abcg2", "smoke", "oc", "napOn", "napT", "napD", "targetBed"]
+["cyp", "ador", "ahr", "abcg2", "smoke", "oc", "napOn", "napT", "napD", "wakeT", "targetBed"]
   .forEach(id => { $(id).addEventListener("input", calc); $(id).addEventListener("change", calc); });
 
 // 默认演示数据（首次打开）
 if (state.doses.length === 0 && !localStorage.getItem(LS_KEY)) {
+  const demoBev = DB_ITEMS.length ? "b000" : "americano";   // 瑞幸标准美式
   state.doses = [
-    { bev: "americano", cups: 1, time: "08:30", day: new Date().toDateString() },
-    { bev: "americano", cups: 1, time: "14:00", day: new Date().toDateString() }
+    { bev: demoBev, cups: 1, time: "08:30", day: new Date().toDateString() },
+    { bev: demoBev, cups: 1, time: "14:00", day: new Date().toDateString() }
   ];
 }
 renderDoses();
 calc();
+// 数据库状态提示（避免静默兜底）
+(function dbBadge() {
+  const el = document.querySelector("#doseList");
+  if (!DB_ITEMS.length && el) {
+    const tip = document.createElement("div");
+    tip.style.cssText = "font-size:12px;color:var(--warn);margin-bottom:8px";
+    tip.textContent = "⚠️ 品牌数据库（db.js）未加载，当前使用通用估算值。请确认 db.js 与 index.html 同目录。";
+    el.parentNode.insertBefore(tip, el);
+  }
+})();
 </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 {
- "updated": "2026-10-02",
- "count": 127,
+ "updated": "2026-11-10",
+ "count": 135,
  "items": [
   {
    "k": "b000",
@@ -1650,6 +1650,111 @@
    "confidence": "medium",
    "collected": "2026-10-02",
    "note": "官方标注0咖啡因"
+  },
+  {
+   "k": "b127",
+   "brand": "雀巢",
+   "category": "速溶咖啡",
+   "drink": "燃魂（速溶黑咖）",
+   "spec": "1.8g/条",
+   "mg_min": 99,
+   "mg_max": 121,
+   "source": "official",
+   "confidence": "high",
+   "collected": "2026-11-10",
+   "note": "详情页标注咖啡因110mg/条"
+  },
+  {
+   "k": "b128",
+   "brand": "雀巢",
+   "category": "速溶咖啡",
+   "drink": "绝对深黑（速溶黑咖）",
+   "spec": "1.8g/条",
+   "mg_min": 69,
+   "mg_max": 85,
+   "source": "official",
+   "confidence": "high",
+   "collected": "2026-11-10",
+   "note": "详情页质检报告506mg/kg按1.8g+150ml水换算≈77mg"
+  },
+  {
+   "k": "b129",
+   "brand": "雀巢",
+   "category": "速溶咖啡",
+   "drink": "云南限定（速溶黑咖）",
+   "spec": "1.8g/条",
+   "mg_min": 30,
+   "mg_max": 36,
+   "source": "official",
+   "confidence": "high",
+   "collected": "2026-11-10",
+   "note": "详情页标注咖啡因33mg/条"
+  },
+  {
+   "k": "b130",
+   "brand": "雀巢",
+   "category": "速溶咖啡",
+   "drink": "醇品（速溶黑咖）",
+   "spec": "1.8g/条",
+   "mg_min": 50,
+   "mg_max": 61,
+   "source": "estimate",
+   "confidence": "medium",
+   "collected": "2026-11-10",
+   "note": "配料表豆种推算≈55mg，与通用速溶基准54mg一致"
+  },
+  {
+   "k": "b131",
+   "brand": "雀巢",
+   "category": "速溶咖啡",
+   "drink": "1+2 原味（三合一）",
+   "spec": "15g/条",
+   "mg_min": 60,
+   "mg_max": 74,
+   "source": "estimate",
+   "confidence": "medium",
+   "collected": "2026-11-10",
+   "kcal": 70,
+   "note": "配料表推算≈67mg，FDA/NCA口径65mg交叉印证"
+  },
+  {
+   "k": "b132",
+   "brand": "雀巢",
+   "category": "速溶咖啡",
+   "drink": "1+2 特浓（三合一）",
+   "spec": "13g/条",
+   "mg_min": 63,
+   "mg_max": 77,
+   "source": "estimate",
+   "confidence": "medium",
+   "collected": "2026-11-10",
+   "note": "配料表推算≈70mg"
+  },
+  {
+   "k": "b133",
+   "brand": "G7",
+   "category": "速溶咖啡",
+   "drink": "三合一速溶",
+   "spec": "16g/条",
+   "mg_min": 50,
+   "mg_max": 65,
+   "source": "estimate",
+   "confidence": "low",
+   "collected": "2026-11-10",
+   "note": "配料表13%速溶粉（罗布斯塔）推算50-65mg"
+  },
+  {
+   "k": "b134",
+   "brand": "知乎知物",
+   "category": "速溶咖啡",
+   "drink": "重启（冻干黑咖）",
+   "spec": "1条",
+   "mg_min": 162,
+   "mg_max": 198,
+   "source": "official",
+   "confidence": "medium",
+   "collected": "2026-11-10",
+   "note": "官方详情页标注180mg/条（媒体引用）"
   }
  ]
 }
